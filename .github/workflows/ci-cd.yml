@@ -110,8 +110,8 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
             type=sha,format=long
-            type=ref,event=branch
-            latest
+            #type=ref,event=branch
+            #latest
       
       - name: Build Docker image
         uses: docker/build-push-action@v5
@@ -130,7 +130,7 @@ jobs:
           password: ${{ secrets.TOKEN }}
 
       - name: Extract first image tag
-        run: echo "TRIVY_IMAGE=$(echo '${{ steps.meta.outputs.tags }}' | cut -d',' -f1 | tr -d '\n')" >> $GITHUB_ENV
+        run: echo "TRIVY_IMAGE=$(echo '${{ steps.meta.outputs.tags }}')" >> $GITHUB_ENV
 
       - name: Print tag for debug
         run: echo "Tag = $TRIVY_IMAGE"

@@ -11,7 +11,7 @@ on:
 jobs:
   test:
     name: Unit Testing
-    runs-on: ubuntu-latest
+    runs-on: SECOPS
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -30,7 +30,7 @@ jobs:
 
   lint:
     name: Static Code Analysis
-    runs-on: ubuntu-latest
+    runs-on: SECOPS
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -49,7 +49,7 @@ jobs:
 
   build:
     name: Build
-    runs-on: ubuntu-latest
+    runs-on: SECOPS
     needs: [test, lint]
     steps:
       - name: Checkout code
@@ -75,7 +75,7 @@ jobs:
 
   docker:
     name: Docker Build and Push
-    runs-on: ubuntu-latest
+    runs-on: SECOPS
     needs: [build]
     env:
       REGISTRY: ghcr.io
@@ -145,7 +145,7 @@ jobs:
 
   update-k8s:
     name: Update Kubernetes Deployment
-    runs-on: ubuntu-latest
+    runs-on: SECOPS
     needs: [docker]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     steps:
@@ -156,8 +156,8 @@ jobs:
       
       - name: Setup Git config
         run: |
-          git config user.name "GitHub Actions"
-          git config user.email "actions@github.com"
+          git config user.name "Arunk-srinivasan"
+          git config user.email "arunkumar.srinivasan@tlconsulting.com.au"
       
       - name: Update Kubernetes deployment file
         env:

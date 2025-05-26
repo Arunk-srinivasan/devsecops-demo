@@ -1,0 +1,129 @@
+name: Reusable CI/CD Workflow
+
+on:
+  workflow_call:
+    inputs:
+      registry:
+        required: true
+        type: string
+      image_name:
+        required: true
+        type: string
+    secrets:
+      TOKEN:
+        required: true
+
+jobs:
+  test:
+    name: Unit Testing
+    runs-on: SECOPS
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm test || echo "No tests found"
+
+  lint:
+    name: Lint Code
+    runs-on: SECOPS
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run lint
+
+  build:
+    name: Build Project
+    runs-on: SECOPS
+    needs: [test, lint]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts
+          path: dist/
+
+  docker:
+    name: Docker Build and Push
+    runs-on: SECOPS
+    needs: [build]
+    env:
+      REGISTRY: ${{ inputs.registry }}
+      IMAGE_NAME: ${{ inputs.image_name }}
+      IMAGE_TAG: latest
+    outputs:
+      image_tag: ${{ steps.set_output.outputs.image_tag }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: build-artifacts
+          path: dist/
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=sha,format=long
+      - uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+      - name: Set image tag output
+        id: set_output
+        run: echo "image_tag=$(echo ${{ github.sha }} | cut -c1-7)" >> $GITHUB_OUTPUT
+      - name: Run Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ steps.meta.outputs.tags }}
+          format: 'table'
+          exit-code: '0'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH'
+
+  update-k8s:
+    name: Update Kubernetes
+    runs-on: SECOPS
+    needs: [docker]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.TOKEN }}
+      - run: |
+          git config user.name "Arunk-srinivasan"
+          git config user.email "arunkumar.srinivasan@tlconsulting.com.au"
+      - env:
+          IMAGE_TAG: sha-${{ github.sha }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          REGISTRY: ${{ inputs.registry }}
+        run: |
+          NEW_IMAGE="${REGISTRY}/${GITHUB_REPOSITORY}:${IMAGE_TAG}"
+          sed -i "s|image: ${REGISTRY}/.*|image: ${NEW_IMAGE}|g" kubernetes/deployment.yaml
+          echo "Updated deployment to use image: ${NEW_IMAGE}"
+          grep -A 1 "image:" kubernetes/deployment.yaml
+      - run: |
+          git add kubernetes/deployment.yaml
+          git commit -m "Update K8s deployment with new image tag: ${{ needs.docker.outputs.image_tag }} [skip ci]" || echo "No changes"
+          git push

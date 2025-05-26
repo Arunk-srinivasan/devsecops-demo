@@ -1,0 +1,18 @@
+name: CI/CD Orchestrator
+
+on:
+  push:
+    branches: [ main ]
+    paths-ignore:
+      - 'kubernetes/deployment.yaml'
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  invoke-pipeline:
+    uses: your-org/your-repo/.github/workflows/reusable-ci-cd.yaml@main
+    with:
+      registry: ghcr.io
+      image_name: ${{ github.repository }}
+    secrets:
+      TOKEN: ${{ secrets.TOKEN }}

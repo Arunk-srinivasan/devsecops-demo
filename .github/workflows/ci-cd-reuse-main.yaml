@@ -10,7 +10,7 @@ on:
 
 jobs:
   invoke-pipeline:
-    uses: your-org/your-repo/.github/workflows/reusable-ci-cd.yaml@main
+    uses: Arunk-srinivasan/devsecops-demo/.github/workflows/reusable-ci-cd.yaml@main
     with:
       registry: ghcr.io
       image_name: ${{ github.repository }}
